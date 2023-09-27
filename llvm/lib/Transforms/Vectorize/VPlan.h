@@ -39,6 +39,7 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/FMF.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/Support/InstructionCost.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -701,6 +702,14 @@ public:
 #endif
 };
 
+struct VPCostContext {
+  const TargetTransformInfo &TTI;
+  VPTypeAnalysis Types;
+
+  VPCostContext(const TargetTransformInfo &TTI, LLVMContext &Ctx)
+      : TTI(TTI), Types(Ctx) {}
+};
+
 /// VPRecipeBase is a base class modeling a sequence of one or more output IR
 /// instructions. VPRecipeBase owns the VPValues it defines through VPDef
 /// and is responsible for deleting its defined values. Single-value
@@ -765,6 +774,10 @@ public:
   ///
   /// \returns an iterator pointing to the element after the erased one
   iplist<VPRecipeBase>::iterator eraseFromParent();
+
+  virtual InstructionCost computeCost(ElementCount VF, VPCostContext &Ctx) {
+    return InstructionCost::getInvalid();
+  }
 
   /// Returns the underlying instruction, if the recipe is a VPValue or nullptr
   /// otherwise.
@@ -1173,6 +1186,8 @@ public:
 
   unsigned getOpcode() const { return Opcode; }
 
+  InstructionCost computeCost(ElementCount VF, VPCostContext &Ctx) override;
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print the recipe.
   void print(raw_ostream &O, const Twine &Indent,
@@ -1467,6 +1482,8 @@ public:
   Type *getScalarType() const {
     return Trunc ? Trunc->getType() : IV->getType();
   }
+
+  InstructionCost computeCost(ElementCount VF, VPCostContext &Ctx) override;
 };
 
 class VPWidenPointerInductionRecipe : public VPHeaderPHIRecipe {
@@ -1753,6 +1770,8 @@ public:
            "Op must be an operand of the recipe");
     return Op == getAddr() && !llvm::is_contained(getStoredValues(), Op);
   }
+
+  Instruction *getInsertPos() const { return IG->getInsertPos(); }
 };
 
 /// A recipe to represent inloop reduction operations, performing a reduction on
@@ -2606,6 +2625,10 @@ public:
   }
 
   bool hasVF(ElementCount VF) { return VFs.count(VF); }
+
+  iterator_range<SmallSetVector<ElementCount, 2>::iterator> vectorFactors() {
+    return {VFs.begin(), VFs.end()};
+  }
 
   bool hasScalarVFOnly() const { return VFs.size() == 1 && VFs[0].isScalar(); }
 
