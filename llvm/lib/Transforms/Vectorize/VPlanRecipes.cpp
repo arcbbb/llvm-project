@@ -757,7 +757,7 @@ InstructionCost VPWidenRecipe::computeCost(ElementCount VF,
   switch (Opcode) {
   case Instruction::FNeg: {
     Type *VectorTy =
-        ToVectorTy(Ctx.Types.inferType(this->getVPSingleValue()), VF);
+        ToVectorTy(Ctx.Types.inferScalarType(this->getVPSingleValue()), VF);
     return Ctx.TTI.getArithmeticInstrCost(
         Opcode, VectorTy, CostKind,
         {TargetTransformInfo::OK_AnyValue, TargetTransformInfo::OP_None},
@@ -793,7 +793,7 @@ InstructionCost VPWidenRecipe::computeCost(ElementCount VF,
         getOperand(1)->isDefinedOutsideVectorRegions())
       Op2Info.Kind = TargetTransformInfo::OK_UniformValue;
     Type *VectorTy =
-        ToVectorTy(Ctx.Types.inferType(this->getVPSingleValue()), VF);
+        ToVectorTy(Ctx.Types.inferScalarType(this->getVPSingleValue()), VF);
     Instruction *CtxI = dyn_cast_or_null<Instruction>(getUnderlyingValue());
 
     SmallVector<const Value *, 4> Operands;
@@ -807,12 +807,12 @@ InstructionCost VPWidenRecipe::computeCost(ElementCount VF,
   case Instruction::Freeze: {
     // This opcode is unknown. Assume that it is the same as 'mul'.
     Type *VectorTy =
-        ToVectorTy(Ctx.Types.inferType(this->getVPSingleValue()), VF);
+        ToVectorTy(Ctx.Types.inferScalarType(this->getVPSingleValue()), VF);
     return Ctx.TTI.getArithmeticInstrCost(Instruction::Mul, VectorTy, CostKind);
   }
   case Instruction::ICmp:
   case Instruction::FCmp: {
-    Type *VectorTy = ToVectorTy(Ctx.Types.inferType(getOperand(0)), VF);
+    Type *VectorTy = ToVectorTy(Ctx.Types.inferScalarType(getOperand(0)), VF);
     return Ctx.TTI.getCmpSelInstrCost(Opcode, VectorTy, nullptr, getPredicate(),
                                       CostKind);
   }
