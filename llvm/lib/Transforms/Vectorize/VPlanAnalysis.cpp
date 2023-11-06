@@ -26,6 +26,13 @@ Type *VPTypeAnalysis::inferScalarTypeForRecipe(const VPBlendRecipe *R) {
 }
 
 Type *VPTypeAnalysis::inferScalarTypeForRecipe(const VPInstruction *R) {
+  if (Instruction::isBinaryOp(R->getOpcode())) {
+    Type *ResTy = inferScalarType(R->getOperand(0));
+    assert(ResTy == inferScalarType(R->getOperand(1)) &&
+           "types for both operands must match for binary op");
+    CachedTypes[R->getOperand(1)] = ResTy;
+    return ResTy;
+  }
   switch (R->getOpcode()) {
   case Instruction::Select: {
     Type *ResTy = inferScalarType(R->getOperand(1));
@@ -43,6 +50,18 @@ Type *VPTypeAnalysis::inferScalarTypeForRecipe(const VPInstruction *R) {
     CachedTypes[OtherV] = ResTy;
     return ResTy;
   }
+  case VPInstruction::Not: {
+    Type *ResTy = inferScalarType(R->getOperand(0));
+    return ResTy;
+  }
+  case VPInstruction::ActiveLaneMask:
+    return IntegerType::get(Ctx, 1);
+  case VPInstruction::CanonicalIVIncrement:
+  case VPInstruction::CanonicalIVIncrementForPart: {
+    Type *ResTy = inferScalarType(R->getOperand(0));
+    return ResTy;
+  }
+
   default:
     break;
   }

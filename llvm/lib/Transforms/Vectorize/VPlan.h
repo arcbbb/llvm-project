@@ -704,10 +704,11 @@ public:
 
 struct VPCostContext {
   const TargetTransformInfo &TTI;
+  LLVMContext &Context;
   VPTypeAnalysis Types;
 
   VPCostContext(const TargetTransformInfo &TTI, LLVMContext &Ctx)
-      : TTI(TTI), Types(Ctx) {}
+      : TTI(TTI), Context(Ctx), Types(Ctx) {}
 };
 
 /// VPRecipeBase is a base class modeling a sequence of one or more output IR
@@ -1163,6 +1164,7 @@ public:
     };
     llvm_unreachable("switch should return");
   }
+  InstructionCost computeCost(ElementCount VF, VPCostContext &Ctx) override;
 };
 
 /// VPWidenRecipe is a recipe for producing a copy of vector type its

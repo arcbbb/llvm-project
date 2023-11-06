@@ -441,6 +441,81 @@ void VPInstruction::execute(VPTransformState &State) {
   }
 }
 
+InstructionCost VPInstruction::computeCost(ElementCount VF,
+                                           VPCostContext &Ctx) {
+  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
+  llvm::LLVMContext &Context = Ctx.Context;
+  Type *VecCondTy = VectorType::get(IntegerType::get(Context, 1), VF);
+  Type *ScCondTy = IntegerType::get(Context, 1);
+
+  unsigned Opcode = getOpcode();
+  if (Instruction::isBinaryOp(Opcode)) {
+    // Operands: A, B
+    Type *VectorTy =
+        VectorType::get(Ctx.Types.inferScalarType(getVPSingleValue()), VF);
+    return Ctx.TTI.getArithmeticInstrCost(Opcode, VectorTy, CostKind);
+  }
+  switch (Opcode) {
+  case VPInstruction::Not: {
+    // Operands: A
+    Type *VectorTy =
+        VectorType::get(Ctx.Types.inferScalarType(getOperand(0)), VF);
+    return Ctx.TTI.getArithmeticInstrCost(Instruction::Xor, VectorTy, CostKind);
+  }
+
+  case Instruction::Select: {
+    // Operands: Cond, Op1, Op2
+    Type *VectorTy =
+        VectorType::get(Ctx.Types.inferScalarType(getVPSingleValue()), VF);
+    return Ctx.TTI.getCmpSelInstrCost(Instruction::Select, VectorTy, VecCondTy,
+                                      CmpInst::BAD_ICMP_PREDICATE, CostKind);
+  }
+  case VPInstruction::ActiveLaneMask: {
+    // Operands: IV, TripCount
+    return 0;
+  }
+
+  case VPInstruction::FirstOrderRecurrenceSplice: {
+    // Operands: FOR, FOR.backedge
+    Type *VectorTy =
+        VectorType::get(Ctx.Types.inferScalarType(getVPSingleValue()), VF);
+    SmallVector<int> Mask(VF.getKnownMinValue());
+    std::iota(Mask.begin(), Mask.end(), VF.getKnownMinValue() - 1);
+    return Ctx.TTI.getShuffleCost(TargetTransformInfo::SK_Splice,
+                                  cast<VectorType>(VectorTy), Mask, CostKind,
+                                  VF.getKnownMinValue() - 1);
+  }
+  case VPInstruction::CalculateTripCountMinusVF: {
+    // Operands: TripCount
+    Type *ScalarTy = Ctx.Types.inferScalarType(getVPSingleValue());
+    return Ctx.TTI.getArithmeticInstrCost(Instruction::Sub, ScalarTy,
+                                          CostKind) +
+           Ctx.TTI.getCmpSelInstrCost(Instruction::ICmp, ScalarTy, ScCondTy,
+                                      CmpInst::ICMP_UGT, CostKind) +
+           Ctx.TTI.getCmpSelInstrCost(Instruction::Select, ScalarTy, ScCondTy,
+                                      CmpInst::BAD_ICMP_PREDICATE, CostKind);
+  }
+  case VPInstruction::CanonicalIVIncrement:
+    // Operands: IVPhi
+  case VPInstruction::CanonicalIVIncrementForPart: {
+    // Operands: StartV
+    Type *ScalarTy = Ctx.Types.inferScalarType(getVPSingleValue());
+    return Ctx.TTI.getArithmeticInstrCost(Instruction::Add, ScalarTy, CostKind);
+  }
+  case VPInstruction::BranchOnCond:
+    // Operands: Cond
+  case VPInstruction::BranchOnCount: {
+    // Operands: IV, TripCount
+    Type *ScalarTy = Ctx.Types.inferScalarType(getOperand(0));
+    return Ctx.TTI.getCmpSelInstrCost(Instruction::ICmp, ScalarTy, ScCondTy,
+                                      CmpInst::ICMP_EQ, CostKind) +
+           Ctx.TTI.getCFInstrCost(Instruction::Br, CostKind);
+  }
+  default:
+    return InstructionCost::getInvalid();
+  } // end of switch
+}
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void VPInstruction::dump() const {
   VPSlotTracker SlotTracker(getParent()->getPlan());

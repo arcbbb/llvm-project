@@ -1335,6 +1335,13 @@ public:
     return UniformsPerVF->second.count(I);
   }
 
+  SmallPtrSet<Instruction *, 4> *getScalars(ElementCount VF) {
+    auto ScalarsPerVF = Scalars.find(VF);
+    if (ScalarsPerVF == Scalars.end())
+      return nullptr;
+    return &ScalarsPerVF->second;
+  }
+
   /// Returns true if \p I is known to be scalar after vectorization.
   bool isScalarAfterVectorization(Instruction *I, ElementCount VF) const {
     if (VF.isScalar())
@@ -7611,18 +7618,7 @@ InstructionCost LoopVectorizationPlanner::computeCost(VPlan &Plan,
   VPBasicBlock *Header =
       cast<VPBasicBlock>(Plan.getVectorLoopRegion()->getEntry());
 
-  // Cost modeling for inductions is inaccurate in the legacy cost model. Try as
-  // to match it here initially during VPlan cost model bring up:
-  // * VPWidenIntOrFpInductionRecipes implement computeCost,
-  // * VPWidenPointerInductionRecipe costs seem to be 0 in the legacy cost model
-  // * other inductions only have a cost of 1 (i.e. the cost of the scalar
-  // induction increment).
-  unsigned NumWideIVs = count_if(Header->phis(), [](VPRecipeBase &R) {
-    return isa<VPWidenPointerInductionRecipe>(&R) ||
-           (isa<VPWidenIntOrFpInductionRecipe>(&R) &&
-            !cast<VPWidenIntOrFpInductionRecipe>(&R)->getTruncInst());
-  });
-  Cost += Legal->getInductionVars().size() - NumWideIVs;
+  SmallPtrSet<Instruction *, 4> CountedScalar;
 
   for (VPBlockBase *Block : to_vector(vp_depth_first_shallow(Header))) {
     if (auto *Region = dyn_cast<VPRegionBlock>(Block)) {
@@ -7634,6 +7630,7 @@ InstructionCost LoopVectorizationPlanner::computeCost(VPlan &Plan,
           continue;
         auto *RepR = cast<VPReplicateRecipe>(&R);
         Cost += CM.getInstructionCost(RepR->getUnderlyingInstr(), VF).first;
+        CountedScalar.insert(RepR->getUnderlyingInstr());
       }
       continue;
     }
@@ -7641,6 +7638,8 @@ InstructionCost LoopVectorizationPlanner::computeCost(VPlan &Plan,
     VPCostContext Ctx(CM.TTI, OrigLoop->getHeader()->getContext());
     for (VPRecipeBase &R : *cast<VPBasicBlock>(Block)) {
       InstructionCost RecipeCost = R.computeCost(VF, Ctx);
+      if (dyn_cast<VPReplicateRecipe>(&R))
+        CountedScalar.insert(R.getUnderlyingInstr());
       if (!RecipeCost.isValid()) {
         if (auto *IG = dyn_cast<VPInterleaveRecipe>(&R)) {
           RecipeCost = CM.getInstructionCost(IG->getInsertPos(), VF).first;
@@ -7664,7 +7663,18 @@ InstructionCost LoopVectorizationPlanner::computeCost(VPlan &Plan,
       Cost += RecipeCost;
     }
   }
-  Cost += 1;
+  // Cost modeling for Replicates is inaccurate in the legacy cost model.
+  // Count the removed dead VPReplicateRecipe here
+  auto *Scalars = CM.getScalars(VF);
+  if (VF.isVector() && Scalars) {
+    for (Instruction *I : *Scalars) {
+      if (CountedScalar.count(I) > 0)
+        continue;
+      auto C = CM.getInstructionCost(I, VF).first;
+      Cost += C;
+    }
+    Cost -= 2; // Remove for CanonicalIVIncrement and BranchOnCount
+  }
   LLVM_DEBUG(dbgs() << "Cost for " << VF << ": " << Cost << "\n");
   return Cost;
 }
