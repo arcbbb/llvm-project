@@ -64,7 +64,7 @@ for.end22.i.i:                                    ; preds = %for.body14.i.i
 ; CHECK-LABEL: @cvCalcEMD3
 ; CHECK: vector.body
 ; CHECK: inttoptr <{{[0-9]+}} x i32>
-define void @cvCalcEMD3() local_unnamed_addr #0 personality ptr @__gxx_personality_v0 {
+define void @cvCalcEMD3(ptr %dst) local_unnamed_addr #0 personality ptr @__gxx_personality_v0 {
 entry:
   br label %for.body14.i.i
 
@@ -74,6 +74,10 @@ for.body14.i.i:                                   ; preds = %for.body14.i.i, %en
   %loadf = load float, ptr %arrayidx15.i.i1427, align 4
   %next19.i.i = getelementptr inbounds %struct.CvNode1D, ptr undef, i32 %i.1424.i.i, i32 1
   %loadp = load ptr, ptr %next19.i.i, align 4
+  %dst.ptr = getelementptr inbounds %struct.CvNode1D, ptr %dst, i32 %i.1424.i.i
+  %dst.ptr.1 = getelementptr inbounds %struct.CvNode1D, ptr %dst, i32 %i.1424.i.i, i32 1
+  store float %loadf, ptr %dst.ptr, align 4
+  store ptr %loadp, ptr %dst.ptr.1, align 4
   %inc21.i.i = add nuw nsw i32 %i.1424.i.i, 1
   %exitcond438.i.i = icmp eq i32 %inc21.i.i, 0
   br i1 %exitcond438.i.i, label %for.end22.i.i, label %for.body14.i.i
@@ -87,7 +91,7 @@ for.end22.i.i:                                    ; preds = %for.body14.i.i
 ; CHECK-LABEL: @cvCalcEMD3_2
 ; CHECK: vector.body
 ; CHECK: ptrtoint <{{[0-9]+}} x ptr>
-define void @cvCalcEMD3_2() local_unnamed_addr #0 personality ptr @__gxx_personality_v0 {
+define void @cvCalcEMD3_2(ptr %dst) local_unnamed_addr #0 personality ptr @__gxx_personality_v0 {
 entry:
   br label %for.body14.i.i
 
@@ -98,6 +102,10 @@ for.body14.i.i:                                   ; preds = %for.body14.i.i, %en
   %arrayidx15.i.i1427 = getelementptr inbounds %struct.CvNode1D2, ptr undef, i32 %i.1424.i.i
   %val.i.i = getelementptr inbounds %struct.CvNode1D2, ptr %arrayidx15.i.i1427, i32 0, i32 1
   %loadf = load float, ptr %val.i.i, align 4
+  %dst.ptr = getelementptr inbounds %struct.CvNode1D, ptr %dst, i32 %i.1424.i.i
+  %dst.ptr.1 = getelementptr inbounds %struct.CvNode1D, ptr %dst, i32 %i.1424.i.i, i32 1
+  store float %loadf, ptr %dst.ptr, align 4
+  store ptr %loadp, ptr %dst.ptr.1, align 4
   %inc21.i.i = add nuw nsw i32 %i.1424.i.i, 1
   %exitcond438.i.i = icmp eq i32 %inc21.i.i, 0
   br i1 %exitcond438.i.i, label %for.end22.i.i, label %for.body14.i.i
