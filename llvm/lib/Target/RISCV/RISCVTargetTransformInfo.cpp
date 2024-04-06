@@ -1305,22 +1305,32 @@ InstructionCost RISCVTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
     return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
                                      I);
 
+  // TODO: Add cost for scalar type.
+  if (!ValTy->isVectorTy())
+    return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
+                                     I);
   // Skip if scalar size of ValTy is bigger than ELEN.
-  if (ValTy->isVectorTy() && ValTy->getScalarSizeInBits() > ST->getELen())
+  bool IsTypeLegal =
+      isTypeLegal(ValTy) && (ValTy->getScalarSizeInBits() <= ST->getELen());
+  if (!IsTypeLegal)
     return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
                                      I);
 
-  if (Opcode == Instruction::Select && ValTy->isVectorTy()) {
-    std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(ValTy);
+  std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(ValTy);
+  if (Opcode == Instruction::Select) {
     if (CondTy->isVectorTy()) {
       if (ValTy->getScalarSizeInBits() == 1) {
         // vmandn.mm v8, v8, v9
         // vmand.mm v9, v0, v9
         // vmor.mm v0, v9, v8
-        return LT.first * 3;
+        return LT.first *
+               getRISCVInstructionCost(
+                   {RISCV::VMANDN_MM, RISCV::VMAND_MM, RISCV::VMOR_MM},
+                   LT.second, CostKind);
       }
       // vselect and max/min are supported natively.
-      return LT.first * 1;
+      return LT.first *
+             getRISCVInstructionCost(RISCV::VMERGE_VVM, LT.second, CostKind);
     }
 
     if (ValTy->getScalarSizeInBits() == 1) {
@@ -1329,48 +1339,125 @@ InstructionCost RISCVTTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
       //  vmandn.mm v8, v8, v9
       //  vmand.mm v9, v0, v9
       //  vmor.mm v0, v9, v8
-      return LT.first * 5;
+      return LT.first * getRISCVInstructionCost(
+                            {RISCV::VMV_V_X, RISCV::VMSNE_VI, RISCV::VMANDN_MM,
+                             RISCV::VMAND_MM, RISCV::VMOR_MM},
+                            LT.second, CostKind);
     }
 
     // vmv.v.x v10, a0
     // vmsne.vi v0, v10, 0
     // vmerge.vvm v8, v9, v8, v0
-    return LT.first * 3;
+    return LT.first * getRISCVInstructionCost(
+                          {RISCV::VMV_V_X, RISCV::VMSNE_VI, RISCV::VMERGE_VVM},
+                          LT.second, CostKind);
   }
 
-  if ((Opcode == Instruction::ICmp || Opcode == Instruction::FCmp) &&
-      ValTy->isVectorTy()) {
-    std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(ValTy);
-
-    // Support natively.
-    if (CmpInst::isIntPredicate(VecPred))
-      return LT.first * 1;
-
-    // If we do not support the input floating point vector type, use the base
-    // one which will calculate as:
-    // ScalarizeCost + Num * Cost for fixed vector,
-    // InvalidCost for scalable vector.
-    if ((ValTy->getScalarSizeInBits() == 16 && !ST->hasVInstructionsF16()) ||
-        (ValTy->getScalarSizeInBits() == 32 && !ST->hasVInstructionsF32()) ||
-        (ValTy->getScalarSizeInBits() == 64 && !ST->hasVInstructionsF64()))
-      return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind,
-                                       I);
+  if ((Opcode == Instruction::ICmp) && CmpInst::isIntPredicate(VecPred)) {
+    unsigned RVVOp;
     switch (VecPred) {
-      // Support natively.
-    case CmpInst::FCMP_OEQ:
-    case CmpInst::FCMP_OGT:
-    case CmpInst::FCMP_OGE:
-    case CmpInst::FCMP_OLT:
-    case CmpInst::FCMP_OLE:
-    case CmpInst::FCMP_UNE:
-      return LT.first * 1;
-    // TODO: Other comparisons?
-    default:
+    case CmpInst::ICMP_EQ:
+      RVVOp = RISCV::VMSEQ_VV;
+      break;
+    case CmpInst::ICMP_NE:
+      RVVOp = RISCV::VMSNE_VV;
+      break;
+    case CmpInst::ICMP_UGT:
+      RVVOp = RISCV::VMSLTU_VV;
+      break;
+    case CmpInst::ICMP_ULT:
+      RVVOp = RISCV::VMSLTU_VV;
+      break;
+    case CmpInst::ICMP_ULE:
+      RVVOp = RISCV::VMSLEU_VV;
+      break;
+    case CmpInst::ICMP_SGT:
+      RVVOp = RISCV::VMSLT_VV;
+      break;
+    case CmpInst::ICMP_UGE:
+      RVVOp = RISCV::VMSLEU_VV;
+      break;
+    case CmpInst::ICMP_SGE:
+      RVVOp = RISCV::VMSLE_VV;
+      break;
+    case CmpInst::ICMP_SLT:
+      RVVOp = RISCV::VMSLT_VV;
+      break;
+    case CmpInst::ICMP_SLE:
+      RVVOp = RISCV::VMSLE_VV;
       break;
     }
+    return LT.first * getRISCVInstructionCost(RVVOp, LT.second, CostKind);
   }
 
-  // TODO: Add cost for scalar type.
+  if ((Opcode == Instruction::FCmp) && CmpInst::isFPPredicate(VecPred)) {
+    if ((ValTy->getScalarSizeInBits() == 16) && !ST->hasVInstructionsF16() &&
+        (VecPred != CmpInst::FCMP_FALSE) && (VecPred != CmpInst::FCMP_TRUE)) {
+      // pre-widening to f32 and then compare
+      VectorType *VecF32Ty =
+          VectorType::get(Type::getDoubleTy(ValTy->getContext()),
+                          cast<VectorType>(ValTy)->getElementCount());
+      std::pair<InstructionCost, MVT> VecF32LT =
+          getTypeLegalizationCost(VecF32Ty);
+      InstructionCost WidenCost = getRISCVInstructionCost(
+          RISCV::VFWCVT_F_F_V, VecF32LT.second, CostKind);
+      InstructionCost CmpCost =
+          getCmpSelInstrCost(Opcode, VecF32Ty, CondTy, VecPred, CostKind, I);
+      return VecF32LT.first * WidenCost + CmpCost;
+    }
+    SmallVector<unsigned, 3> RVVOps;
+    switch (VecPred) {
+    case CmpInst::FCMP_FALSE:
+      RVVOps = {RISCV::VMXOR_MM};
+      break;
+    case CmpInst::FCMP_OEQ:
+      RVVOps = {RISCV::VMFEQ_VV};
+      break;
+    case CmpInst::FCMP_OGT:
+      RVVOps = {RISCV::VMFLT_VV};
+      break;
+    case CmpInst::FCMP_OGE:
+      RVVOps = {RISCV::VMFLE_VV};
+      break;
+    case CmpInst::FCMP_OLT:
+      RVVOps = {RISCV::VMFLT_VV};
+      break;
+    case CmpInst::FCMP_OLE:
+      RVVOps = {RISCV::VMFLE_VV};
+      break;
+    case CmpInst::FCMP_ONE:
+      RVVOps = {RISCV::VMFLT_VV, RISCV::VMFLT_VV, RISCV::VMOR_MM};
+      break;
+    case CmpInst::FCMP_ORD:
+      RVVOps = {RISCV::VMFLT_VV, RISCV::VMFLT_VV, RISCV::VMOR_MM};
+      break;
+    case CmpInst::FCMP_UNO:
+      RVVOps = {RISCV::VMFEQ_VV, RISCV::VMFEQ_VV, RISCV::VMAND_MM};
+      break;
+    case CmpInst::FCMP_UEQ:
+      RVVOps = {RISCV::VMFNE_VV, RISCV::VMFNE_VV, RISCV::VMOR_MM};
+      break;
+    case CmpInst::FCMP_UGT:
+      RVVOps = {RISCV::VMFLT_VV, RISCV::VMFLT_VV, RISCV::VMNOR_MM};
+      break;
+    case CmpInst::FCMP_UGE:
+      RVVOps = {RISCV::VMFLE_VV, RISCV::VMNAND_MM};
+      break;
+    case CmpInst::FCMP_ULT:
+      RVVOps = {RISCV::VMFLT_VV, RISCV::VMNAND_MM};
+      break;
+    case CmpInst::FCMP_ULE:
+      RVVOps = {RISCV::VMFLE_VV, RISCV::VMNAND_MM};
+      break;
+    case CmpInst::FCMP_UNE:
+      RVVOps = {RISCV::VMFLT_VV, RISCV::VMNAND_MM};
+      break;
+    case CmpInst::FCMP_TRUE:
+      RVVOps = {RISCV::VMXNOR_MM};
+      break;
+    }
+    return LT.first * getRISCVInstructionCost(RVVOps, LT.second, CostKind);
+  }
 
   return BaseT::getCmpSelInstrCost(Opcode, ValTy, CondTy, VecPred, CostKind, I);
 }
