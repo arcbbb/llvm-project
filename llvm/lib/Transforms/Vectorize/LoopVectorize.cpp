@@ -9682,12 +9682,20 @@ void LoopVectorizationPlanner::adjustRecipesForReductions(
   VPBasicBlock *LatchVPBB = VectorLoopRegion->getExitingBasicBlock();
   Builder.setInsertPoint(&*LatchVPBB->begin());
   VPBasicBlock::iterator IP = MiddleVPBB->getFirstNonPhi();
-  for (VPRecipeBase &R :
-       Plan->getVectorLoopRegion()->getEntryBasicBlock()->phis()) {
+  for (VPRecipeBase &R : make_early_inc_range(
+           Plan->getVectorLoopRegion()->getEntryBasicBlock()->phis())) {
     VPReductionPHIRecipe *PhiR = dyn_cast<VPReductionPHIRecipe>(&R);
     if (!PhiR)
       continue;
 
+    ScalarEvolution &SE = *PSE.getSE();
+    auto *PN = cast<PHINode>(PhiR->getUnderlyingValue());
+    if (auto *C = dyn_cast<SCEVConstant>(SE.getSCEV(PN))) {
+      VPValue *PV = Plan->getOrAddLiveIn(C->getValue());
+      PhiR->replaceAllUsesWith(PV);
+      PhiR->eraseFromParent();
+      continue;
+    }
     const RecurrenceDescriptor &RdxDesc = PhiR->getRecurrenceDescriptor();
     // If tail is folded by masking, introduce selects between the phi
     // and the users outside the vector region of each reduction, at the
