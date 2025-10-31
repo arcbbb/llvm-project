@@ -1678,6 +1678,20 @@ public:
   LLVM_ABI InstructionCost getIntrinsicInstrCost(
       const IntrinsicCostAttributes &ICA, TTI::TargetCostKind CostKind) const;
 
+  /// \returns The cost of memory Intrinsic instructions.
+  /// It is used when IntrinsicInst is not meterialized.
+  /// \p DataTy - a vector type of the data to be loaded or stored
+  /// \p Ptr - pointer [or vector of pointers] - address[es] in memory
+  /// \p VariableMask - true when the memory access is predicated with a mask
+  ///                   that is not a compile-time constant
+  /// \p Alignment - alignment of single element
+  /// \p I - the optional original context instruction, if one exists, e.g. the
+  ///        load/store to transform or the call to the gather/scatter intrinsic
+  LLVM_ABI InstructionCost getMemIntrinsicInstrCost(
+      Intrinsic::ID Id, Type *DataTy, const Value *Ptr, bool VariableMask,
+      Align Alignment, TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
+      const Instruction *I = nullptr) const;
+
   /// \returns The cost of Call instructions.
   LLVM_ABI InstructionCost getCallInstrCost(
       Function *F, Type *RetTy, ArrayRef<Type *> Tys,
