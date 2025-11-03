@@ -1966,9 +1966,8 @@ public:
       Type *EltTy = cast<VectorType>(Data->getType())->getElementType();
       Align Alignment =
           I->getParamAlign(1).value_or(thisT()->DL.getABITypeAlign(EltTy));
-      return thisT()->getStridedMemoryOpCost(Instruction::Store,
-                                             Data->getType(), Ptr, VarMask,
-                                             Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(IID, Data->getType(), Ptr,
+                                               VarMask, Alignment, CostKind, I);
     }
     case Intrinsic::experimental_vp_strided_load: {
       const Value *Ptr = Args[0];
@@ -1978,8 +1977,8 @@ public:
       Type *EltTy = cast<VectorType>(RetTy)->getElementType();
       Align Alignment =
           I->getParamAlign(0).value_or(thisT()->DL.getABITypeAlign(EltTy));
-      return thisT()->getStridedMemoryOpCost(Instruction::Load, RetTy, Ptr,
-                                             VarMask, Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(IID, RetTy, Ptr, VarMask,
+                                               Alignment, CostKind, I);
     }
     case Intrinsic::stepvector: {
       if (isa<ScalableVectorType>(RetTy))
@@ -2420,16 +2419,16 @@ public:
     case Intrinsic::experimental_vp_strided_store: {
       auto *Ty = cast<VectorType>(ICA.getArgTypes()[0]);
       Align Alignment = thisT()->DL.getABITypeAlign(Ty->getElementType());
-      return thisT()->getStridedMemoryOpCost(
-          Instruction::Store, Ty, /*Ptr=*/nullptr, /*VariableMask=*/true,
-          Alignment, CostKind, ICA.getInst());
+      return thisT()->getMemIntrinsicInstrCost(IID, Ty, /*Ptr=*/nullptr,
+                                               /*VariableMask=*/true, Alignment,
+                                               CostKind, ICA.getInst());
     }
     case Intrinsic::experimental_vp_strided_load: {
       auto *Ty = cast<VectorType>(ICA.getReturnType());
       Align Alignment = thisT()->DL.getABITypeAlign(Ty->getElementType());
-      return thisT()->getStridedMemoryOpCost(
-          Instruction::Load, Ty, /*Ptr=*/nullptr, /*VariableMask=*/true,
-          Alignment, CostKind, ICA.getInst());
+      return thisT()->getMemIntrinsicInstrCost(IID, Ty, /*Ptr=*/nullptr,
+                                               /*VariableMask=*/true, Alignment,
+                                               CostKind, ICA.getInst());
     }
     case Intrinsic::vector_reduce_add:
     case Intrinsic::vector_reduce_mul:
@@ -3015,6 +3014,26 @@ public:
 
     // This is going to be turned into a library call, make it expensive.
     return SingleCallCost;
+  }
+
+  /// Get memory intrinsic cost based on arguments.
+  InstructionCost getMemIntrinsicInstrCost(Intrinsic::ID Id, Type *DataTy,
+                                           const Value *Ptr, bool VariableMask,
+                                           Align Alignment,
+                                           TTI::TargetCostKind CostKind,
+                                           const Instruction *I) const {
+    switch (Id) {
+    case Intrinsic::experimental_vp_strided_load:
+    case Intrinsic::experimental_vp_strided_store: {
+      unsigned Opcode = (Id == Intrinsic::experimental_vp_strided_load)
+                            ? Instruction::Load
+                            : Instruction::Store;
+      return thisT()->getStridedMemoryOpCost(Opcode, DataTy, Ptr, VariableMask,
+                                             Alignment, CostKind, I);
+    }
+    default:
+      llvm_unreachable("unexpected intrinsic");
+    }
   }
 
   /// Compute a cost of the given call instruction.
