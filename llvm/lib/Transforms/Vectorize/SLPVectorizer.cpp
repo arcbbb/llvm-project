@@ -7132,9 +7132,10 @@ BoUpSLP::LoadsState BoUpSLP::canVectorizeLoads(
         ScalarGEPCost;
     // The cost of masked gather.
     InstructionCost MaskedGatherCost =
-        TTI.getGatherScatterOpCost(
-            Instruction::Load, VecTy, cast<LoadInst>(VL0)->getPointerOperand(),
-            /*VariableMask=*/false, CommonAlignment, CostKind) +
+        TTI.getMemIntrinsicInstrCost(Intrinsic::masked_gather, VecTy,
+                                     cast<LoadInst>(VL0)->getPointerOperand(),
+                                     /*VariableMask=*/false, CommonAlignment,
+                                     CostKind) +
         (ProfitableGatherPointers ? 0 : VectorGEPCost);
     InstructionCost GatherCost =
         getScalarizationOverhead(TTI, ScalarTy, VecTy, DemandedElts,
@@ -7256,11 +7257,11 @@ BoUpSLP::LoadsState BoUpSLP::canVectorizeLoads(
                                         {}, CostKind);
           break;
         case LoadsState::ScatterVectorize:
-          VecLdCost += TTI.getGatherScatterOpCost(Instruction::Load, SubVecTy,
-                                                  LI0->getPointerOperand(),
-                                                  /*VariableMask=*/false,
-                                                  CommonAlignment, CostKind) +
-                       VectorGEPCost;
+          VecLdCost +=
+              TTI.getMemIntrinsicInstrCost(
+                  Intrinsic::masked_gather, SubVecTy, LI0->getPointerOperand(),
+                  /*VariableMask=*/false, CommonAlignment, CostKind) +
+              VectorGEPCost;
           break;
         case LoadsState::Gather:
           // Gathers are already calculated - ignore.
@@ -15062,8 +15063,8 @@ BoUpSLP::getEntryCost(const TreeEntry *E, ArrayRef<Value *> VectorizedVals,
       case TreeEntry::ScatterVectorize: {
         Align CommonAlignment =
             computeCommonAlignment<LoadInst>(UniqueValues.getArrayRef());
-        VecLdCost = TTI->getGatherScatterOpCost(
-            Instruction::Load, VecTy, LI0->getPointerOperand(),
+        VecLdCost = TTI->getMemIntrinsicInstrCost(
+            Intrinsic::masked_gather, VecTy, LI0->getPointerOperand(),
             /*VariableMask=*/false, CommonAlignment, CostKind);
         break;
       }

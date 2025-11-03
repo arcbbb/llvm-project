@@ -1808,9 +1808,9 @@ public:
         if (auto *VPI = dyn_cast_or_null<VPIntrinsic>(ICA.getInst()))
           Alignment = VPI->getPointerAlignment().valueOrOne();
         bool VarMask = isa<Constant>(ICA.getArgs()[2]);
-        return thisT()->getGatherScatterOpCost(
-            Instruction::Store, ICA.getArgTypes()[0], ICA.getArgs()[1], VarMask,
-            Alignment, CostKind, nullptr);
+        return thisT()->getMemIntrinsicInstrCost(
+            Intrinsic::vp_scatter, ICA.getArgTypes()[0], ICA.getArgs()[1],
+            VarMask, Alignment, CostKind, nullptr);
       }
       if (ICA.getID() == Intrinsic::vp_gather) {
         if (ICA.isTypeBasedOnly()) {
@@ -1824,9 +1824,9 @@ public:
         if (auto *VPI = dyn_cast_or_null<VPIntrinsic>(ICA.getInst()))
           Alignment = VPI->getPointerAlignment().valueOrOne();
         bool VarMask = isa<Constant>(ICA.getArgs()[1]);
-        return thisT()->getGatherScatterOpCost(
-            Instruction::Load, ICA.getReturnType(), ICA.getArgs()[0], VarMask,
-            Alignment, CostKind, nullptr);
+        return thisT()->getMemIntrinsicInstrCost(
+            Intrinsic::vp_gather, ICA.getReturnType(), ICA.getArgs()[0],
+            VarMask, Alignment, CostKind, nullptr);
       }
 
       if (ICA.getID() == Intrinsic::vp_select ||
@@ -1931,16 +1931,17 @@ public:
       const Value *Mask = Args[2];
       bool VarMask = !isa<Constant>(Mask);
       Align Alignment = I->getParamAlign(1).valueOrOne();
-      return thisT()->getGatherScatterOpCost(Instruction::Store,
-                                             ICA.getArgTypes()[0], Args[1],
-                                             VarMask, Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(Intrinsic::masked_scatter,
+                                               ICA.getArgTypes()[0], Args[1],
+                                               VarMask, Alignment, CostKind, I);
     }
     case Intrinsic::masked_gather: {
       const Value *Mask = Args[1];
       bool VarMask = !isa<Constant>(Mask);
       Align Alignment = I->getParamAlign(0).valueOrOne();
-      return thisT()->getGatherScatterOpCost(Instruction::Load, RetTy, Args[0],
-                                             VarMask, Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(Intrinsic::masked_gather, RetTy,
+                                               Args[0], VarMask, Alignment,
+                                               CostKind, I);
     }
     case Intrinsic::masked_compressstore: {
       const Value *Data = Args[0];
@@ -3029,6 +3030,17 @@ public:
                             ? Instruction::Load
                             : Instruction::Store;
       return thisT()->getStridedMemoryOpCost(Opcode, DataTy, Ptr, VariableMask,
+                                             Alignment, CostKind, I);
+    }
+    case Intrinsic::masked_scatter:
+    case Intrinsic::masked_gather:
+    case Intrinsic::vp_scatter:
+    case Intrinsic::vp_gather: {
+      unsigned Opcode =
+          ((Id == Intrinsic::masked_gather) || (Id == Intrinsic::vp_gather))
+              ? Instruction::Load
+              : Instruction::Store;
+      return thisT()->getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
                                              Alignment, CostKind, I);
     }
     default:

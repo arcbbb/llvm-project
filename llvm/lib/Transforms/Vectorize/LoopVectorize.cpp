@@ -5257,10 +5257,13 @@ LoopVectorizationCostModel::getGatherScatterCost(Instruction *I,
   if (!Legal->isUniform(Ptr, VF))
     PtrTy = toVectorTy(PtrTy, VF);
 
+  unsigned IID = (I->getOpcode() == Instruction::Load)
+                     ? Intrinsic::masked_gather
+                     : Intrinsic::masked_scatter;
   return TTI.getAddressComputationCost(PtrTy, nullptr, nullptr, CostKind) +
-         TTI.getGatherScatterOpCost(I->getOpcode(), VectorTy, Ptr,
-                                    Legal->isMaskRequired(I), Alignment,
-                                    CostKind, I);
+         TTI.getMemIntrinsicInstrCost(IID, VectorTy, Ptr,
+                                      Legal->isMaskRequired(I), Alignment,
+                                      CostKind, I);
 }
 
 InstructionCost

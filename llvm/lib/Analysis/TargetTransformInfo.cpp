@@ -1191,16 +1191,6 @@ InstructionCost TargetTransformInfo::getMaskedMemoryOpCost(
   return Cost;
 }
 
-InstructionCost TargetTransformInfo::getGatherScatterOpCost(
-    unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
-    Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) const {
-  InstructionCost Cost = TTIImpl->getGatherScatterOpCost(
-      Opcode, DataTy, Ptr, VariableMask, Alignment, CostKind, I);
-  assert((!Cost.isValid() || Cost >= 0) &&
-         "TTI should not produce negative costs!");
-  return Cost;
-}
-
 InstructionCost TargetTransformInfo::getExpandCompressMemoryOpCost(
     unsigned Opcode, Type *DataTy, bool VariableMask, Align Alignment,
     TTI::TargetCostKind CostKind, const Instruction *I) const {
