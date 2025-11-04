@@ -1950,16 +1950,16 @@ public:
       const Value *Data = Args[0];
       const Value *Mask = Args[2];
       Align Alignment = I->getParamAlign(1).valueOrOne();
-      return thisT()->getExpandCompressMemoryOpCost(
-          Instruction::Store, Data->getType(), !isa<Constant>(Mask), Alignment,
-          CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(
+          Intrinsic::masked_compressstore, Data->getType(), Args[1],
+          !isa<Constant>(Mask), Alignment, CostKind, I);
     }
     case Intrinsic::masked_expandload: {
       const Value *Mask = Args[1];
       Align Alignment = I->getParamAlign(0).valueOrOne();
-      return thisT()->getExpandCompressMemoryOpCost(Instruction::Load, RetTy,
-                                                    !isa<Constant>(Mask),
-                                                    Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(
+          Intrinsic::masked_expandload, RetTy, Args[0], !isa<Constant>(Mask),
+          Alignment, CostKind, I);
     }
     case Intrinsic::experimental_vp_strided_store: {
       const Value *Data = Args[0];
@@ -3055,6 +3055,14 @@ public:
       unsigned AS = Ptr ? Ptr->getType()->getPointerAddressSpace() : 0;
       return thisT()->getMaskedMemoryOpCost(Opcode, DataTy, Alignment, AS,
                                             CostKind);
+    }
+    case Intrinsic::masked_compressstore:
+    case Intrinsic::masked_expandload: {
+      unsigned Opcode = (Id == Intrinsic::masked_expandload)
+                            ? Instruction::Load
+                            : Instruction::Store;
+      return thisT()->getExpandCompressMemoryOpCost(
+          Opcode, DataTy, VariableMask, Alignment, CostKind, I);
     }
     default:
       llvm_unreachable("unexpected intrinsic");
