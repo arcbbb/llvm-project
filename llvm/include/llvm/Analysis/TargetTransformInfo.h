@@ -1554,11 +1554,6 @@ public:
       OperandValueInfo OpdInfo = {OK_AnyValue, OP_None},
       const Instruction *I = nullptr) const;
 
-  /// \return The cost of masked Load and Store instructions.
-  LLVM_ABI InstructionCost getMaskedMemoryOpCost(
-      unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
-
   /// \return The cost of Expand Load or Compress Store operation
   /// \p Opcode - is a type of memory access Load or Store
   /// \p Src - a vector type of the data to be loaded or stored

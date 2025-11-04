@@ -1606,10 +1606,13 @@ public:
 
     // Firstly, the cost of load/store operation.
     InstructionCost Cost;
-    if (UseMaskForCond || UseMaskForGaps)
-      Cost = thisT()->getMaskedMemoryOpCost(Opcode, VecTy, Alignment,
-                                            AddressSpace, CostKind);
-    else
+    if (UseMaskForCond || UseMaskForGaps) {
+      unsigned IID = (Opcode == Instruction::Load) ? Intrinsic::masked_load
+                                                   : Intrinsic::masked_store;
+      Cost = thisT()->getMemIntrinsicInstrCost(
+          IID, VecTy, /*Ptr*/ nullptr, /*VariableMask*/ false, Alignment,
+          CostKind, /*Instruction*/ nullptr);
+    } else
       Cost = thisT()->getMemoryOpCost(Opcode, VecTy, Alignment, AddressSpace,
                                       CostKind);
 
@@ -2408,14 +2411,16 @@ public:
     case Intrinsic::masked_store: {
       Type *Ty = Tys[0];
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
-      return thisT()->getMaskedMemoryOpCost(Instruction::Store, Ty, TyAlign, 0,
-                                            CostKind);
+      return thisT()->getMemIntrinsicInstrCost(
+          Intrinsic::masked_store, Ty,
+          /*Ptr*/ nullptr, /*VariableMask*/ false, TyAlign, CostKind, nullptr);
     }
     case Intrinsic::masked_load: {
       Type *Ty = RetTy;
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
-      return thisT()->getMaskedMemoryOpCost(Instruction::Load, Ty, TyAlign, 0,
-                                            CostKind);
+      return thisT()->getMemIntrinsicInstrCost(
+          Intrinsic::masked_load, Ty,
+          /*Ptr*/ nullptr, /*VariableMask*/ false, TyAlign, CostKind, nullptr);
     }
     case Intrinsic::experimental_vp_strided_store: {
       auto *Ty = cast<VectorType>(ICA.getArgTypes()[0]);
@@ -3042,6 +3047,14 @@ public:
               : Instruction::Store;
       return thisT()->getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
                                              Alignment, CostKind, I);
+    }
+    case Intrinsic::masked_load:
+    case Intrinsic::masked_store: {
+      unsigned Opcode = (Id == Intrinsic::masked_load) ? Instruction::Load
+                                                       : Instruction::Store;
+      unsigned AS = Ptr ? Ptr->getType()->getPointerAddressSpace() : 0;
+      return thisT()->getMaskedMemoryOpCost(Opcode, DataTy, Alignment, AS,
+                                            CostKind);
     }
     default:
       llvm_unreachable("unexpected intrinsic");
