@@ -1610,7 +1610,7 @@ public:
       unsigned IID = (Opcode == Instruction::Load) ? Intrinsic::masked_load
                                                    : Intrinsic::masked_store;
       Cost = thisT()->getMemIntrinsicInstrCost(
-          IID, VecTy, /*Ptr*/ nullptr, /*VariableMask*/ false, Alignment,
+          IID, VecTy, /*Ptr*/ nullptr, /*VariableMask*/ true, Alignment,
           CostKind, /*Instruction*/ nullptr);
     } else
       Cost = thisT()->getMemoryOpCost(Opcode, VecTy, Alignment, AddressSpace,
@@ -2413,14 +2413,14 @@ public:
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
       return thisT()->getMemIntrinsicInstrCost(
           Intrinsic::masked_store, Ty,
-          /*Ptr*/ nullptr, /*VariableMask*/ false, TyAlign, CostKind, nullptr);
+          /*Ptr*/ nullptr, /*VariableMask*/ true, TyAlign, CostKind, nullptr);
     }
     case Intrinsic::masked_load: {
       Type *Ty = RetTy;
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
       return thisT()->getMemIntrinsicInstrCost(
           Intrinsic::masked_load, Ty,
-          /*Ptr*/ nullptr, /*VariableMask*/ false, TyAlign, CostKind, nullptr);
+          /*Ptr*/ nullptr, /*VariableMask*/ true, TyAlign, CostKind, nullptr);
     }
     case Intrinsic::experimental_vp_strided_store: {
       auto *Ty = cast<VectorType>(ICA.getArgTypes()[0]);

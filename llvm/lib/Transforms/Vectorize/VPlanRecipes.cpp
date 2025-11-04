@@ -3574,7 +3574,7 @@ InstructionCost VPWidenMemoryRecipe::computeCost(ElementCount VF,
                                                 : Intrinsic::masked_store;
     const Value *Ptr = getLoadStorePointerOperand(&Ingredient);
     Cost += Ctx.TTI.getMemIntrinsicInstrCost(
-        IID, Ty, Ptr, /*VariableMask*/ false, Alignment, Ctx.CostKind);
+        IID, Ty, Ptr, /*VariableMask*/ true, Alignment, Ctx.CostKind);
   } else {
     TTI::OperandValueInfo OpInfo = Ctx.getOperandInfo(
         isa<VPWidenLoadRecipe, VPWidenLoadEVLRecipe>(this) ? getOperand(0)
@@ -3693,7 +3693,7 @@ InstructionCost VPWidenLoadEVLRecipe::computeCost(ElementCount VF,
   const Align Alignment = getLoadStoreAlignment(&Ingredient);
   const Value *Ptr = getLoadStorePointerOperand(&Ingredient);
   InstructionCost Cost = Ctx.TTI.getMemIntrinsicInstrCost(
-      Intrinsic::masked_load, Ty, Ptr, /*VariableMask*/ false, Alignment,
+      Intrinsic::masked_load, Ty, Ptr, /*VariableMask*/ true, Alignment,
       Ctx.CostKind);
   if (!Reverse)
     return Cost;
@@ -3803,7 +3803,7 @@ InstructionCost VPWidenStoreEVLRecipe::computeCost(ElementCount VF,
   const Align Alignment = getLoadStoreAlignment(&Ingredient);
   const Value *Ptr = getLoadStorePointerOperand(&Ingredient);
   InstructionCost Cost = Ctx.TTI.getMemIntrinsicInstrCost(
-      Intrinsic::masked_store, Ty, Ptr, /*VariableMask*/ false, Alignment,
+      Intrinsic::masked_store, Ty, Ptr, /*VariableMask*/ true, Alignment,
       Ctx.CostKind);
   if (!Reverse)
     return Cost;

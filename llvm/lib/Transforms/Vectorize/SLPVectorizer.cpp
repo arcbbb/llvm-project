@@ -6850,7 +6850,7 @@ static bool isMaskedLoadCompress(
   if (IsMasked) {
     LoadCost = TTI.getMemIntrinsicInstrCost(
         Intrinsic::masked_load, LoadVecTy, LI->getPointerOperand(),
-        /*VariableMask*/ false, CommonAlignment, CostKind);
+        /*VariableMask*/ true, CommonAlignment, CostKind);
   } else {
     LoadCost =
         TTI.getMemoryOpCost(Instruction::Load, LoadVecTy, CommonAlignment,
@@ -7252,7 +7252,7 @@ BoUpSLP::LoadsState BoUpSLP::canVectorizeLoads(
           VecLdCost +=
               TTI.getMemIntrinsicInstrCost(
                   Intrinsic::masked_load, SubVecTy, LI0->getPointerOperand(),
-                  /*VariableMask*/ false, CommonAlignment, CostKind) +
+                  /*VariableMask*/ true, CommonAlignment, CostKind) +
               VectorGEPCost +
               ::getShuffleCost(TTI, TTI::SK_PermuteSingleSrc, SubVecTy, {},
                                CostKind);
@@ -15047,7 +15047,7 @@ BoUpSLP::getEntryCost(const TreeEntry *E, ArrayRef<Value *> VectorizedVals,
         } else if (IsMasked) {
           VecLdCost = TTI->getMemIntrinsicInstrCost(
               Intrinsic::masked_load, LoadVecTy, LI0->getPointerOperand(),
-              /*VariableMask*/ false, CommonAlignment, CostKind);
+              /*VariableMask*/ true, CommonAlignment, CostKind);
           // TODO: include this cost into CommonCost.
           VecLdCost += ::getShuffleCost(*TTI, TTI::SK_PermuteSingleSrc,
                                         LoadVecTy, CompressMask, CostKind);

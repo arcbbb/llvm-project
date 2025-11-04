@@ -5201,7 +5201,7 @@ LoopVectorizationCostModel::getConsecutiveMemOpCost(Instruction *I,
                        ? Intrinsic::masked_load
                        : Intrinsic::masked_store;
     Cost += TTI.getMemIntrinsicInstrCost(
-        IID, VectorTy, Ptr, /*VariableMask*/ false, Alignment, CostKind);
+        IID, VectorTy, Ptr, /*VariableMask*/ true, Alignment, CostKind);
   } else {
     TTI::OperandValueInfo OpInfo = TTI::getOperandInfo(I->getOperand(0));
     Cost += TTI.getMemoryOpCost(I->getOpcode(), VectorTy, Alignment, AS,
