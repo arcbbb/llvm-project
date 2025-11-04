@@ -3023,11 +3023,11 @@ public:
   }
 
   /// Get memory intrinsic cost based on arguments.
-  InstructionCost getMemIntrinsicInstrCost(Intrinsic::ID Id, Type *DataTy,
-                                           const Value *Ptr, bool VariableMask,
-                                           Align Alignment,
-                                           TTI::TargetCostKind CostKind,
-                                           const Instruction *I) const {
+  InstructionCost
+  getMemIntrinsicInstrCost(Intrinsic::ID Id, Type *DataTy, const Value *Ptr,
+                           bool VariableMask, Align Alignment,
+                           TTI::TargetCostKind CostKind,
+                           const Instruction *I) const override {
     switch (Id) {
     case Intrinsic::experimental_vp_strided_load:
     case Intrinsic::experimental_vp_strided_store: {
