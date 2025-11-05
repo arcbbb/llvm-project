@@ -1632,8 +1632,8 @@ public:
   LLVM_ABI InstructionCost getIntrinsicInstrCost(
       const IntrinsicCostAttributes &ICA, TTI::TargetCostKind CostKind) const;
 
-  /// \returns The cost of memory Intrinsic instructions.
-  /// It is used when IntrinsicInst is not meterialized.
+  /// \returns The cost of memory intrinsic instructions.
+  /// Used when IntrinsicInst is not materialized.
   /// \p DataTy - a vector type of the data to be loaded or stored
   /// \p Ptr - pointer [or vector of pointers] - address[es] in memory
   /// \p VariableMask - true when the memory access is predicated with a mask

@@ -1607,8 +1607,8 @@ public:
     // Firstly, the cost of load/store operation.
     InstructionCost Cost;
     if (UseMaskForCond || UseMaskForGaps) {
-      unsigned IID = (Opcode == Instruction::Load) ? Intrinsic::masked_load
-                                                   : Intrinsic::masked_store;
+      unsigned IID = Opcode == Instruction::Load ? Intrinsic::masked_load
+                                                 : Intrinsic::masked_store;
       Cost = thisT()->getMemIntrinsicInstrCost(
           IID, VecTy, /*Ptr*/ nullptr, /*VariableMask*/ true, Alignment,
           CostKind, /*Instruction*/ nullptr);
@@ -3031,7 +3031,7 @@ public:
     switch (Id) {
     case Intrinsic::experimental_vp_strided_load:
     case Intrinsic::experimental_vp_strided_store: {
-      unsigned Opcode = (Id == Intrinsic::experimental_vp_strided_load)
+      unsigned Opcode = Id == Intrinsic::experimental_vp_strided_load
                             ? Instruction::Load
                             : Instruction::Store;
       return thisT()->getStridedMemoryOpCost(Opcode, DataTy, Ptr, VariableMask,
@@ -3042,7 +3042,7 @@ public:
     case Intrinsic::vp_scatter:
     case Intrinsic::vp_gather: {
       unsigned Opcode =
-          ((Id == Intrinsic::masked_gather) || (Id == Intrinsic::vp_gather))
+          (Id == Intrinsic::masked_gather || Id == Intrinsic::vp_gather)
               ? Instruction::Load
               : Instruction::Store;
       return thisT()->getGatherScatterOpCost(Opcode, DataTy, Ptr, VariableMask,
@@ -3050,17 +3050,16 @@ public:
     }
     case Intrinsic::masked_load:
     case Intrinsic::masked_store: {
-      unsigned Opcode = (Id == Intrinsic::masked_load) ? Instruction::Load
-                                                       : Instruction::Store;
+      unsigned Opcode =
+          Id == Intrinsic::masked_load ? Instruction::Load : Instruction::Store;
       unsigned AS = Ptr ? Ptr->getType()->getPointerAddressSpace() : 0;
       return thisT()->getMaskedMemoryOpCost(Opcode, DataTy, Alignment, AS,
                                             CostKind);
     }
     case Intrinsic::masked_compressstore:
     case Intrinsic::masked_expandload: {
-      unsigned Opcode = (Id == Intrinsic::masked_expandload)
-                            ? Instruction::Load
-                            : Instruction::Store;
+      unsigned Opcode = Id == Intrinsic::masked_expandload ? Instruction::Load
+                                                           : Instruction::Store;
       return thisT()->getExpandCompressMemoryOpCost(
           Opcode, DataTy, VariableMask, Alignment, CostKind, I);
     }

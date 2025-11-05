@@ -5197,7 +5197,7 @@ LoopVectorizationCostModel::getConsecutiveMemOpCost(Instruction *I,
   const Align Alignment = getLoadStoreAlignment(I);
   InstructionCost Cost = 0;
   if (Legal->isMaskRequired(I)) {
-    unsigned IID = (I->getOpcode() == Instruction::Load)
+    unsigned IID = I->getOpcode() == Instruction::Load
                        ? Intrinsic::masked_load
                        : Intrinsic::masked_store;
     Cost += TTI.getMemIntrinsicInstrCost(
@@ -5260,7 +5260,7 @@ LoopVectorizationCostModel::getGatherScatterCost(Instruction *I,
   if (!Legal->isUniform(Ptr, VF))
     PtrTy = toVectorTy(PtrTy, VF);
 
-  unsigned IID = (I->getOpcode() == Instruction::Load)
+  unsigned IID = I->getOpcode() == Instruction::Load
                      ? Intrinsic::masked_gather
                      : Intrinsic::masked_scatter;
   return TTI.getAddressComputationCost(PtrTy, nullptr, nullptr, CostKind) +
