@@ -1202,10 +1202,9 @@ TargetTransformInfo::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
 }
 
 InstructionCost TargetTransformInfo::getMemIntrinsicInstrCost(
-    unsigned Opcode, Type *DataTy, const Value *Ptr, bool VariableMask,
-    Align Alignment, TTI::TargetCostKind CostKind, const Instruction *I) const {
-  InstructionCost Cost = TTIImpl->getMemIntrinsicInstrCost(
-      Opcode, DataTy, Ptr, VariableMask, Alignment, CostKind, I);
+    const MemIntrinsicCostAttributes &MICA,
+    TTI::TargetCostKind CostKind) const {
+  InstructionCost Cost = TTIImpl->getMemIntrinsicInstrCost(MICA, CostKind);
   assert(Cost >= 0 && "TTI should not produce negative costs!");
   return Cost;
 }

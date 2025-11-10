@@ -1610,8 +1610,7 @@ public:
       unsigned IID = Opcode == Instruction::Load ? Intrinsic::masked_load
                                                  : Intrinsic::masked_store;
       Cost = thisT()->getMemIntrinsicInstrCost(
-          IID, VecTy, /*Ptr*/ nullptr, /*VariableMask*/ true, Alignment,
-          CostKind, /*Instruction*/ nullptr);
+          {IID, VecTy, Alignment, AddressSpace}, CostKind);
     } else
       Cost = thisT()->getMemoryOpCost(Opcode, VecTy, Alignment, AddressSpace,
                                       CostKind);
@@ -1812,8 +1811,9 @@ public:
           Alignment = VPI->getPointerAlignment().valueOrOne();
         bool VarMask = isa<Constant>(ICA.getArgs()[2]);
         return thisT()->getMemIntrinsicInstrCost(
-            Intrinsic::vp_scatter, ICA.getArgTypes()[0], ICA.getArgs()[1],
-            VarMask, Alignment, CostKind, nullptr);
+            {Intrinsic::vp_scatter, ICA.getArgTypes()[0], ICA.getArgs()[1],
+             VarMask, Alignment, nullptr},
+            CostKind);
       }
       if (ICA.getID() == Intrinsic::vp_gather) {
         if (ICA.isTypeBasedOnly()) {
@@ -1828,8 +1828,9 @@ public:
           Alignment = VPI->getPointerAlignment().valueOrOne();
         bool VarMask = isa<Constant>(ICA.getArgs()[1]);
         return thisT()->getMemIntrinsicInstrCost(
-            Intrinsic::vp_gather, ICA.getReturnType(), ICA.getArgs()[0],
-            VarMask, Alignment, CostKind, nullptr);
+            {Intrinsic::vp_gather, ICA.getReturnType(), ICA.getArgs()[0],
+             VarMask, Alignment, nullptr},
+            CostKind);
       }
 
       if (ICA.getID() == Intrinsic::vp_select ||
@@ -1934,32 +1935,35 @@ public:
       const Value *Mask = Args[2];
       bool VarMask = !isa<Constant>(Mask);
       Align Alignment = I->getParamAlign(1).valueOrOne();
-      return thisT()->getMemIntrinsicInstrCost(Intrinsic::masked_scatter,
-                                               ICA.getArgTypes()[0], Args[1],
-                                               VarMask, Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost({Intrinsic::masked_scatter,
+                                                ICA.getArgTypes()[0], Args[1],
+                                                VarMask, Alignment, I},
+                                               CostKind);
     }
     case Intrinsic::masked_gather: {
       const Value *Mask = Args[1];
       bool VarMask = !isa<Constant>(Mask);
       Align Alignment = I->getParamAlign(0).valueOrOne();
-      return thisT()->getMemIntrinsicInstrCost(Intrinsic::masked_gather, RetTy,
-                                               Args[0], VarMask, Alignment,
-                                               CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(
+          {Intrinsic::masked_gather, RetTy, Args[0], VarMask, Alignment, I},
+          CostKind);
     }
     case Intrinsic::masked_compressstore: {
       const Value *Data = Args[0];
       const Value *Mask = Args[2];
       Align Alignment = I->getParamAlign(1).valueOrOne();
       return thisT()->getMemIntrinsicInstrCost(
-          Intrinsic::masked_compressstore, Data->getType(), Args[1],
-          !isa<Constant>(Mask), Alignment, CostKind, I);
+          {Intrinsic::masked_compressstore, Data->getType(),
+           !isa<Constant>(Mask), Alignment, I},
+          CostKind);
     }
     case Intrinsic::masked_expandload: {
       const Value *Mask = Args[1];
       Align Alignment = I->getParamAlign(0).valueOrOne();
-      return thisT()->getMemIntrinsicInstrCost(
-          Intrinsic::masked_expandload, RetTy, Args[0], !isa<Constant>(Mask),
-          Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost({Intrinsic::masked_expandload,
+                                                RetTy, !isa<Constant>(Mask),
+                                                Alignment, I},
+                                               CostKind);
     }
     case Intrinsic::experimental_vp_strided_store: {
       const Value *Data = Args[0];
@@ -1970,8 +1974,8 @@ public:
       Type *EltTy = cast<VectorType>(Data->getType())->getElementType();
       Align Alignment =
           I->getParamAlign(1).value_or(thisT()->DL.getABITypeAlign(EltTy));
-      return thisT()->getMemIntrinsicInstrCost(IID, Data->getType(), Ptr,
-                                               VarMask, Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(
+          {IID, Data->getType(), Ptr, VarMask, Alignment, I}, CostKind);
     }
     case Intrinsic::experimental_vp_strided_load: {
       const Value *Ptr = Args[0];
@@ -1981,8 +1985,8 @@ public:
       Type *EltTy = cast<VectorType>(RetTy)->getElementType();
       Align Alignment =
           I->getParamAlign(0).value_or(thisT()->DL.getABITypeAlign(EltTy));
-      return thisT()->getMemIntrinsicInstrCost(IID, RetTy, Ptr, VarMask,
-                                               Alignment, CostKind, I);
+      return thisT()->getMemIntrinsicInstrCost(
+          {IID, RetTy, Ptr, VarMask, Alignment, I}, CostKind);
     }
     case Intrinsic::stepvector: {
       if (isa<ScalableVectorType>(RetTy))
@@ -2412,29 +2416,29 @@ public:
       Type *Ty = Tys[0];
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
       return thisT()->getMemIntrinsicInstrCost(
-          Intrinsic::masked_store, Ty,
-          /*Ptr*/ nullptr, /*VariableMask*/ true, TyAlign, CostKind, nullptr);
+          {Intrinsic::masked_store, Ty, TyAlign, 0}, CostKind);
     }
     case Intrinsic::masked_load: {
       Type *Ty = RetTy;
       Align TyAlign = thisT()->DL.getABITypeAlign(Ty);
       return thisT()->getMemIntrinsicInstrCost(
-          Intrinsic::masked_load, Ty,
-          /*Ptr*/ nullptr, /*VariableMask*/ true, TyAlign, CostKind, nullptr);
+          {Intrinsic::masked_load, Ty, TyAlign, 0}, CostKind);
     }
     case Intrinsic::experimental_vp_strided_store: {
       auto *Ty = cast<VectorType>(ICA.getArgTypes()[0]);
       Align Alignment = thisT()->DL.getABITypeAlign(Ty->getElementType());
-      return thisT()->getMemIntrinsicInstrCost(IID, Ty, /*Ptr=*/nullptr,
-                                               /*VariableMask=*/true, Alignment,
-                                               CostKind, ICA.getInst());
+      return thisT()->getMemIntrinsicInstrCost({IID, Ty, /*Ptr=*/nullptr,
+                                                /*VariableMask=*/true,
+                                                Alignment, ICA.getInst()},
+                                               CostKind);
     }
     case Intrinsic::experimental_vp_strided_load: {
       auto *Ty = cast<VectorType>(ICA.getReturnType());
       Align Alignment = thisT()->DL.getABITypeAlign(Ty->getElementType());
-      return thisT()->getMemIntrinsicInstrCost(IID, Ty, /*Ptr=*/nullptr,
-                                               /*VariableMask=*/true, Alignment,
-                                               CostKind, ICA.getInst());
+      return thisT()->getMemIntrinsicInstrCost({IID, Ty, /*Ptr=*/nullptr,
+                                                /*VariableMask=*/true,
+                                                Alignment, ICA.getInst()},
+                                               CostKind);
     }
     case Intrinsic::vector_reduce_add:
     case Intrinsic::vector_reduce_mul:
@@ -3024,10 +3028,16 @@ public:
 
   /// Get memory intrinsic cost based on arguments.
   InstructionCost
-  getMemIntrinsicInstrCost(Intrinsic::ID Id, Type *DataTy, const Value *Ptr,
-                           bool VariableMask, Align Alignment,
-                           TTI::TargetCostKind CostKind,
-                           const Instruction *I) const override {
+  getMemIntrinsicInstrCost(const MemIntrinsicCostAttributes &MICA,
+                           TTI::TargetCostKind CostKind) const override {
+    unsigned Id = MICA.getID();
+    Type *DataTy = MICA.getDataType();
+    const Value *Ptr = MICA.getPointer();
+    const Instruction *I = MICA.getInst();
+    bool VariableMask = MICA.getVariableMask();
+    unsigned AS = MICA.getAddressSpace();
+    Align Alignment = MICA.getAlignment();
+
     switch (Id) {
     case Intrinsic::experimental_vp_strided_load:
     case Intrinsic::experimental_vp_strided_store: {
@@ -3052,7 +3062,6 @@ public:
     case Intrinsic::masked_store: {
       unsigned Opcode =
           Id == Intrinsic::masked_load ? Instruction::Load : Instruction::Store;
-      unsigned AS = Ptr ? Ptr->getType()->getPointerAddressSpace() : 0;
       return thisT()->getMaskedMemoryOpCost(Opcode, DataTy, Alignment, AS,
                                             CostKind);
     }

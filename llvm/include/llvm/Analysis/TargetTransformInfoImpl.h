@@ -927,10 +927,8 @@ public:
   }
 
   virtual InstructionCost
-  getMemIntrinsicInstrCost(unsigned Opcode, Type *DataTy, const Value *Ptr,
-                           bool VariableMask, Align Alignment,
-                           TTI::TargetCostKind CostKind,
-                           const Instruction *I = nullptr) const {
+  getMemIntrinsicInstrCost(const MemIntrinsicCostAttributes &MICA,
+                           TTI::TargetCostKind CostKind) const {
     return 1;
   }
   virtual InstructionCost getCallInstrCost(Function *F, Type *RetTy,
