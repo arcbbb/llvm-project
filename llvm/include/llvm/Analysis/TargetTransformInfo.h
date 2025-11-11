@@ -123,13 +123,13 @@ struct HardwareLoopInfo {
   LLVM_ABI bool canAnalyze(LoopInfo &LI);
 };
 
-/// Information for Memory intrinsic cost model.
+/// Information for memory intrinsic cost model.
 class MemIntrinsicCostAttributes {
   /// Optional original context instruction, if one exists, e.g. the
-  /// load/store to transform to the intrinsic
+  /// load/store to transform to the intrinsic.
   const Instruction *I = nullptr;
 
-  /// Address in memory
+  /// Address in memory.
   const Value *Ptr = nullptr;
 
   /// Vector type of the data to be loaded or stored.
@@ -137,11 +137,11 @@ class MemIntrinsicCostAttributes {
   Intrinsic::ID IID;
 
   /// True when the memory access is predicated with a mask
-  /// that is not a compile-time constant
+  /// that is not a compile-time constant.
   bool VariableMask = true;
   unsigned AddressSpace = 0;
 
-  /// Alignment of single element
+  /// Alignment of single element.
   Align Alignment;
 
 public:
