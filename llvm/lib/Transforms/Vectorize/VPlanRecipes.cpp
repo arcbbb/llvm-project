@@ -3692,7 +3692,7 @@ InstructionCost VPWidenLoadEVLRecipe::computeCost(ElementCount VF,
   unsigned AS = cast<PointerType>(Ctx.Types.inferScalarType(getAddr()))
                     ->getAddressSpace();
   InstructionCost Cost = Ctx.TTI.getMemIntrinsicInstrCost(
-      {Intrinsic::masked_load, Ty, Alignment, AS}, Ctx.CostKind);
+      {Intrinsic::vp_load, Ty, Alignment, AS}, Ctx.CostKind);
   if (!Reverse)
     return Cost;
 
