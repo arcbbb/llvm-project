@@ -20785,6 +20785,49 @@ InstructionCost BoUpSLP::getGatherCost(ArrayRef<Value *> VL, bool ForPoisonSrc,
                                      /*Insert=*/true,
                                      /*Extract=*/false, CostKind,
                                      ForPoisonSrc && !IsAnyNonUndefConst, VL);
+
+  // If every non-constant lane is sourced from a single already-vectorized
+  // TreeEntry whose vector factor matches VL.size(), the codegen path
+  // collapses the per-lane inserts into one shufflevector of that vector.
+  // Re-cost using SK_PermuteSingleSrc on the source vector and prefer it when
+  // it is cheaper than the per-lane buildvector estimate above.
+  if (!DemandedElements.isZero() && !IsAnyNonUndefConst) {
+    const TreeEntry *CommonTE = nullptr;
+    SmallVector<int> ShuffleMask(VF, PoisonMaskElem);
+    bool AllFromOneTE = true;
+    for (auto [I, V] : enumerate(VL)) {
+      if (isa<UndefValue>(V) || isConstant(V))
+        continue;
+      if (V->getType() != ScalarTy) {
+        AllFromOneTE = false;
+        break;
+      }
+      const TreeEntry *Match = nullptr;
+      for (TreeEntry *TE : getTreeEntries(V)) {
+        if (TE->isGather() || TE->State == TreeEntry::SplitVectorize)
+          continue;
+        if (TE->getVectorFactor() != VF)
+          continue;
+        if (CommonTE && TE != CommonTE)
+          continue;
+        Match = TE;
+        break;
+      }
+      if (!Match) {
+        AllFromOneTE = false;
+        break;
+      }
+      CommonTE = Match;
+      ShuffleMask[I] = Match->findLaneForValue(V);
+    }
+    if (AllFromOneTE && CommonTE &&
+        CommonTE->Scalars.front()->getType() == ScalarTy &&
+        !ShuffleVectorInst::isIdentityMask(ShuffleMask, VF)) {
+      Cost = ::getShuffleCost(*TTI, TargetTransformInfo::SK_PermuteSingleSrc,
+                              VecTy, ShuffleMask, CostKind);
+    }
+  }
+
   return Cost;
 }
 
